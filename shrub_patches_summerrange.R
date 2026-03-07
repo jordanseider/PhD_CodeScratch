@@ -50,9 +50,14 @@ tall_decid[tall_decid < threshold] <- NA
 
 # Define patches
 # Group touching pixels into unique patches (using 8-way connectivity)
+
+## If this takes too long, change directions to 4.
+# This uses the rook's case and does not count diagonal cells as a continued part of the patch.
+# Could you justify this by considering that a tile is 30m*30m and diagonal cells are further, ecologically, from the centre ?
 shrub_patches <- patches(tall_decid, directions = 8)
 
-# Calculate the area of every single cell in square kilometers (km)
+# Calculate the area of every single cell in square kilometers (km2)
+# We know that the pixels are 30*30m but this accounts for the spherical shape of Earth to get a better calculation of exact cell area (note most cells are very close to 900 square metres)
 cell_area_km2 <- cellSize(shrub_patches, unit = "km")
 
 # Sum the cell areas, grouped by their unique patch ID
@@ -67,4 +72,6 @@ large_patches_raster <- match(shrub_patches, large_patch_ids)
 
 # Convert to categorical for 'landscapemetrics' package analyses
 # 1 = Tall Deciduous Shrub Patch, NA = everything else
-telldecid_patches <- ifel(!is.na(large_patches_raster), 1, NA)
+# Multiply by 0 (turns all IDs to 0) and add 1 (turns all 0s to 1)
+# NA values are ignored and remain NA
+talldecid_patches <- as.factor((large_patches_raster * 0) + 1)
