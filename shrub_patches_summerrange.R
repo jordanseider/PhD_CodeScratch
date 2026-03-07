@@ -3,6 +3,7 @@ library(landscapemetrics)
 library(dplyr)
 
 # Optimize 'terra' processing
+# memfrac determines the proportion of computer memory 'terra' is allowed to use before writing temp files to slower SSD
 terraOptions(memfrac = 0.8)
 
 setwd("C:/Users/jseider.stu/Sync")
