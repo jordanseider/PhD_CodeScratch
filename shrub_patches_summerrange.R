@@ -5,6 +5,8 @@ library(dplyr)
 # Optimize 'terra' processing
 terraOptions(memfrac = 0.8)
 
+setwd("C:/Users/jseider.stu/Sync")
+
 # Load Macander PFT (deciduous shrubs) for 2015 (closest alignment with ABoVE land cover data)
 decid_2015 <- rast(
   "Data/AnnualPFT_ABoVE_Macander/ABoVE_PFT_Top_Cover_DeciduousShrub_2015.tif"
