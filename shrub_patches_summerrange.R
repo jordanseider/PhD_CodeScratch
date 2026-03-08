@@ -4,6 +4,7 @@ library(dplyr)
 library(foreach)
 library(doParallel)
 library(tidyr)
+library(sf)
 
 # Optimize 'terra' processing
 # memfrac determines the proportion of computer memory 'terra' is allowed to use before writing temp files to slower SSD
@@ -151,4 +152,5 @@ large_patches_poly <- merge(
   large_patches_poly,
   clean_patch_metrics,
   by = "patch_id"
-)
+) %>%
+  project("EPSG:3579")
