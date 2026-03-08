@@ -1,6 +1,9 @@
 library(terra)
 library(landscapemetrics)
 library(dplyr)
+library(foreach)
+library(doParallel)
+library(tidyr)
 
 # Optimize 'terra' processing
 # memfrac determines the proportion of computer memory 'terra' is allowed to use before writing temp files to slower SSD
@@ -50,11 +53,11 @@ tall_decid[tall_decid < threshold] <- NA
 
 # Define patches
 # Group touching pixels into unique patches (using 8-way connectivity)
-
-## If this takes too long, change directions to 4.
+## If this takes too long (it does, up to 8 hours to process), change directions to 4.
 # This uses the rook's case and does not count diagonal cells as a continued part of the patch.
 # Could you justify this by considering that a tile is 30m*30m and diagonal cells are further, ecologically, from the centre ?
 shrub_patches <- patches(tall_decid, directions = 8)
+# Saved a local copy of 8 neighbour output to: "~/Sync/Data/Shrubs/shrub_patches.tif"
 
 # Calculate the area of every single cell in square kilometers (km2)
 # We know that the pixels are 30*30m but this accounts for the spherical shape of Earth to get a better calculation of exact cell area (note most cells are very close to 900 square metres)
@@ -67,11 +70,85 @@ colnames(patch_areas) <- c("patch_id", "area_km2")
 # Filter for patches strictly greater than 0.25 km^2
 large_patch_ids <- patch_areas$patch_id[patch_areas$area_km2 > 0.25]
 
-# Mask the patches raster to only keep the large ones
-large_patches_raster <- match(shrub_patches, large_patch_ids)
+# Mask the patches raster but keep the ORIGINAL patch IDs intact
+large_patches_raster <- ifel(
+  shrub_patches %in% large_patch_ids,
+  shrub_patches,
+  NA
+)
 
-# Convert to categorical for 'landscapemetrics' package analyses
-# 1 = Tall Deciduous Shrub Patch, NA = everything else
-# Multiply by 0 (turns all IDs to 0) and add 1 (turns all 0s to 1)
-# NA values are ignored and remain NA
-talldecid_patches <- as.factor((large_patches_raster * 0) + 1)
+# Convert the filtered raster into spatial polygons to use as cookie cutters for processing with 'landscapemetrics'
+large_patches_poly <- as.polygons(large_patches_raster)
+names(large_patches_poly) <- "patch_id"
+
+# Convert your terra SpatVector into a native R sf dataframe
+# This removes the C++ pointers and prevents the crash!
+patches_sf <- st_as_sf(large_patches_poly)
+
+# Wrap the raster so it survives the background transfer
+wrapped_raster <- wrap(large_patches_raster)
+
+use_cores <- 12
+cl <- makeCluster(use_cores)
+registerDoParallel(cl)
+
+cat("Starting thread-safe parallel processing across", use_cores, "cores...\n")
+
+# Iterating over the safe sf dataframe
+final_lsm_data <- foreach(
+  i = 1:nrow(patches_sf),
+  .combine = bind_rows,
+  .packages = c("terra", "landscapemetrics", "dplyr", "sf")
+) %dopar%
+  {
+    # A. Unpack the massive raster
+    worker_raster <- unwrap(wrapped_raster)
+
+    # B. Safely subset the sf dataframe (No C++ collisions!)
+    single_poly_sf <- patches_sf[i, ]
+    current_id <- single_poly_sf$patch_id
+
+    # C. Convert JUST this one row back to a terra SpatVector for the crop
+    single_poly_terra <- vect(single_poly_sf)
+
+    # D. CROP: Shrink the massive raster down
+    tiny_rast <- crop(worker_raster, single_poly_terra)
+
+    # E. MASK: Filter out neighboring patches
+    tiny_rast <- ifel(tiny_rast == current_id, 1, NA)
+
+    # F. CALCULATE
+    patch_metrics <- calculate_lsm(
+      tiny_rast,
+      level = "class",
+      metric = c("area", "core", "shape", "perim"),
+      progress = FALSE
+    )
+
+    # G. ATTACH ID
+    patch_metrics <- patch_metrics %>% mutate(patch_id = current_id)
+
+    return(patch_metrics)
+  }
+
+stopCluster(cl)
+cat("Parallel processing complete!\n")
+
+clean_patch_metrics <- final_lsm_data %>%
+  # Keep only the rows containing the actual values
+  filter(grepl("_mn", metric)) %>%
+  # Drop the useless landscapemetrics structural columns
+  select(patch_id, metric, value) %>%
+  # Clean the metric names (e.g., turn "area_mn" into just "area")
+  mutate(metric = gsub("_mn", "", metric)) %>%
+  # Pivot the table so each metric gets its own column
+  pivot_wider(names_from = metric, values_from = value) %>%
+  # Rename columns to include units
+  rename(area_ha = area, core_ha = core, shape_index = shape) # Ratio index where 1 is highly compact, and >1 is increasingly complex/convoluted
+
+# Merge the attribute table onto your spatial polygons
+large_patches_poly <- merge(
+  large_patches_poly,
+  clean_patch_metrics,
+  by = "patch_id"
+)
