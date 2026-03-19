@@ -82,11 +82,10 @@ large_patches_raster <- ifel(
 large_patches_poly <- as.polygons(large_patches_raster)
 names(large_patches_poly) <- "patch_id"
 
-# Convert your terra SpatVector into a native R sf dataframe
-# This removes the C++ pointers and prevents the crash!
+# Convert terra SpatVector into a sf dataframe to avoid errors associated with parallelizing terra objects
 patches_sf <- st_as_sf(large_patches_poly)
 
-# Wrap the raster so it survives the background transfer
+# Wrap the raster so it survives the background transfer to multiple cores (for parallel processing)
 wrapped_raster <- wrap(large_patches_raster)
 
 use_cores <- 12
@@ -105,20 +104,21 @@ final_lsm_data <- foreach(
     # A. Unpack the massive raster
     worker_raster <- unwrap(wrapped_raster)
 
-    # B. Safely subset the sf dataframe (No C++ collisions!)
+    # B. Subset the sf dataframe for one (i) patch
     single_poly_sf <- patches_sf[i, ]
     current_id <- single_poly_sf$patch_id
 
-    # C. Convert JUST this one row back to a terra SpatVector for the crop
+    # C. Convert JUST this one row back to a terra SpatVector to crop the worker_raster object
     single_poly_terra <- vect(single_poly_sf)
 
-    # D. CROP: Shrink the massive raster down
+    # D. CROP: Cut the worker_raster object to just the one patch (i)
     tiny_rast <- crop(worker_raster, single_poly_terra)
 
-    # E. MASK: Filter out neighboring patches
+    # E. MASK: Make tiny_rast binary where 1 is the patch and NA is not the patch
     tiny_rast <- ifel(tiny_rast == current_id, 1, NA)
 
-    # F. CALCULATE
+    # F. CALCULATE: Calculate patch metric for single patch (i)
+    # Using level = "class", but this is equivalent to calculating metrics on the "patch" scale since we are only looking at one patch
     patch_metrics <- calculate_lsm(
       tiny_rast,
       level = "class",
@@ -137,6 +137,7 @@ cat("Parallel processing complete!\n")
 
 clean_patch_metrics <- final_lsm_data %>%
   # Keep only the rows containing the actual values
+  # 'mn' = mean, since we are only calculating matrics on one patch, not an entire class with many patches, we do not have values for std dev or cv
   filter(grepl("_mn", metric)) %>%
   # Drop the useless landscapemetrics structural columns
   select(patch_id, metric, value) %>%
