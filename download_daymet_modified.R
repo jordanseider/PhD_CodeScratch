@@ -1,3 +1,9 @@
+###-------------------------------------------------------------------###
+### Function to download Daymet data at point locations 
+### This function has been modified from code shared by Sarah Elmendorf
+### Modified by Jordan Seider to allow any set of lat/long, use with caution
+###-------------------------------------------------------------------###
+
 test_set <- data.frame(
   siteCode = c("Site_A", "Site_B", "Site_C", "Site_D", "Site_E"),
   latitude = c(69.57554, 69.57569, 69.57762, 69.57496, 69.57651),
