@@ -1,15 +1,44 @@
 ###-------------------------------------------------------------------###
-### Function to download Daymet data at point locations 
+### Function to download Daymet data at point locations
 ### This function has been modified from code shared by Sarah Elmendorf
 ### Modified by Jordan Seider to allow any set of lat/long, use with caution
 ###-------------------------------------------------------------------###
 
+# Required packages
+if (!requireNamespace("httr", quietly = TRUE)) {
+  install.packages("httr")
+}
+if (!requireNamespace("jsonlite", quietly = TRUE)) {
+  install.packages("jsonlite")
+}
+if (!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+if (!requireNamespace("purrr", quietly = TRUE)) {
+  install.packages("purrr")
+}
+if (!requireNamespace("tibble", quietly = TRUE)) {
+  install.packages("tibble")
+}
+if (!requireNamespace("daymetr", quietly = TRUE)) {
+  install.packages("daymetr")
+}
+
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(daymetr)
+
+# Create a test dataframe
 test_set <- data.frame(
   siteCode = c("Site_A", "Site_B", "Site_C", "Site_D", "Site_E"),
   latitude = c(69.57554, 69.57569, 69.57762, 69.57496, 69.57651),
   longitude = c(-138.9044, -138.9053, -138.9127, -138.8949, -138.8670)
 )
 
+# Function to download Daymet data at point locations
 download_daymet <- function(
   dest_dir, # Destination directory
   start_year = 1980,
