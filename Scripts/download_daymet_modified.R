@@ -32,14 +32,14 @@ library(tibble)
 library(daymetr)
 
 # Create a test dataframe
-test_set <- data.frame(
-  siteCode = c("Site_A", "Site_B", "Site_C", "Site_D", "Site_E"),
-  latitude = c(69.57554, 69.57569, 69.57762, 69.57496, 69.57651),
-  longitude = c(-138.9044, -138.9053, -138.9127, -138.8949, -138.8670)
-)
+# test_set <- data.frame(
+#   siteCode = c("Site_A", "Site_B", "Site_C", "Site_D", "Site_E"),
+#   latitude = c(69.57554, 69.57569, 69.57762, 69.57496, 69.57651),
+#   longitude = c(-138.9044, -138.9053, -138.9127, -138.8949, -138.8670)
+# )
 
 # Function to download Daymet data at point locations
-download_daymet <- function(
+download_daymet_pnt <- function(
   dest_dir, # Destination directory
   start_year = 1980,
   end_year = as.character(as.numeric(format(Sys.Date(), "%Y")) - 1), # Default value is current year minus 1 (previous complete year)
@@ -194,4 +194,7 @@ download_daymet <- function(
   invisible(results)
 }
 
-download_daymet(dest_dir = "C:/Users/jseider.stu/Desktop", sites_df = test_set)
+download_daymet_pnt(
+  dest_dir = "C:/Users/jseider.stu/Desktop",
+  sites_df = test_set
+)
