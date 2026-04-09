@@ -23,6 +23,12 @@ if (!requireNamespace("tibble", quietly = TRUE)) {
 if (!requireNamespace("daymetr", quietly = TRUE)) {
   install.packages("daymetr")
 }
+if (!requireNamespace("sf", quietly = TRUE)) {
+  install.packages("sf")
+}
+if (!requireNamespace("appeears", quietly = TRUE)) {
+  install.packages("appeears")
+}
 
 library(httr)
 library(jsonlite)
@@ -30,13 +36,16 @@ library(dplyr)
 library(purrr)
 library(tibble)
 library(daymetr)
+library(sf)
+library(appeears)
+options(keyring_backend = "file")
 
-# Create a test dataframe
-# test_set <- data.frame(
-#   siteCode = c("Site_A", "Site_B", "Site_C", "Site_D", "Site_E"),
-#   latitude = c(69.57554, 69.57569, 69.57762, 69.57496, 69.57651),
-#   longitude = c(-138.9044, -138.9053, -138.9127, -138.8949, -138.8670)
-# )
+### --- NOTE: Prior to running these functions, you need to provide your NASA AppEEARS username and password --- ###
+## run the following function in your CONSOLE (to avoid saving your credentials in the script):
+# rs_set_key(
+#   user = "earth_data_user",
+#   password = "XXXXXXXXXXXXXXXXXXXXXX"
+#   )
 
 # Function to download Daymet data at point locations
 download_daymet_pnt <- function(
@@ -194,7 +203,62 @@ download_daymet_pnt <- function(
   invisible(results)
 }
 
-download_daymet_pnt(
-  dest_dir = "C:/Users/jseider.stu/Desktop",
-  sites_df = test_set
+## Create a test dataframe
+# test_set <- data.frame(
+#   siteCode = c("Site_A", "Site_B", "Site_C", "Site_D", "Site_E"),
+#   latitude = c(69.57554, 69.57569, 69.57762, 69.57496, 69.57651),
+#   longitude = c(-138.9044, -138.9053, -138.9127, -138.8949, -138.8670)
+# )
+
+## Run function with test set
+# download_daymet_pnt(
+#   dest_dir = "C:/Users/jseider.stu/Desktop",
+#   sites_df = test_set
+# )
+
+download_daymet_grd <- function(
+  dest_dir = tempdir(),
+  poly,
+  start_year = 1980,
+  end_year = as.character(as.numeric(format(Sys.Date(), "%Y")) - 1),
+  vars = "ALL",
+  ...
+) {
+  bbox <- poly |> st_transform("EPSG:4326") |> st_bbox() |> as.vector()
+  bbox <- bbox[c(4, 1, 2, 3)]
+
+  files_before <- list.files(dest_dir, pattern = "\\.nc$", full.names = TRUE)
+
+  download_daymet_tiles(
+    location = bbox,
+    start = start_year,
+    end = end_year,
+    param = vars,
+    path = dest_dir,
+    ...
+  )
+
+  files_after <- list.files(dest_dir, pattern = "\\.nc$", full.names = TRUE)
+  new_files <- setdiff(files_after, files_before)
+
+  if (length(new_files) > 0) {
+    gridded_data <- terra::rast(new_files)
+    return(gridded_data)
+  } else {
+    warning(
+      "No new .nc files were detected. The download may have failed or files were overwritten."
+    )
+    return(NULL)
+  }
+}
+
+test_poly <- st_read(
+  "C:/Users/jseider.stu/Sync/Data/OpenCanada/PPA_YT/CLAB_YT_2023-09-08.shp"
+) |>
+  filter(NAME_E == "IVVAVIK NATIONAL PARK OF CANADA")
+
+test <- download_daymet_grd(
+  poly = test_poly,
+  start_year = 2000,
+  end_year = 2002
 )
