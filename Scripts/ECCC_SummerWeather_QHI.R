@@ -32,7 +32,7 @@ summer <- qhi %>%
     days_above_20 = sum(temp > 20, na.rm = TRUE),
     pct_above_20 = (sum(temp > 20, na.rm = TRUE) / n) * 100,
   ) %>%
-  ungroup()
+  ungroup())
 
 (dataplot <- byyear %>%
   pivot_longer(
@@ -72,28 +72,31 @@ ggsave(
 
 ## Plot by percent fo days recorded
 (dataplot_pct <- byyear %>%
-    pivot_longer(
-      cols = c(pct_above_15, pct_above_20),
-      names_to = "threshold",
-      values_to = "days"
-    ) %>%
-    mutate(year_label = paste0(year, "\n(n=", n, ")")) %>%
-    ggplot(aes(x = year_label, y = days, color = threshold, group = threshold)) +
-    geom_point(size = 2) +
-    geom_line() +
-    scale_color_manual(
-      values = c("pct_above_15" = "#0a697d", "pct_above_20" = "#ab2a42"),
-      labels = c("Percent of Recorded Days > 15°C", "Percent of Recorded Days > 20°C")
-    ) +
-    labs(
-      x = "\nYear",
-      y = "Percent of Recorded Days\n",
-      color = "July 1 to August 31"
-    ) +
-    theme_classic() +
-    theme(
-      axis.text = element_text(size = 8),
-      axis.title = element_text(size = 10),
-      legend.text = element_text(size = 8),
-      legend.title = element_text(size = 8)
-    ))
+  pivot_longer(
+    cols = c(pct_above_15, pct_above_20),
+    names_to = "threshold",
+    values_to = "days"
+  ) %>%
+  mutate(year_label = paste0(year, "\n(n=", n, ")")) %>%
+  ggplot(aes(x = year_label, y = days, color = threshold, group = threshold)) +
+  geom_point(size = 2) +
+  geom_line() +
+  scale_color_manual(
+    values = c("pct_above_15" = "#0a697d", "pct_above_20" = "#ab2a42"),
+    labels = c(
+      "Percent of Recorded Days > 15°C",
+      "Percent of Recorded Days > 20°C"
+    )
+  ) +
+  labs(
+    x = "\nYear",
+    y = "Percent of Recorded Days\n",
+    color = "July 1 to August 31"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text = element_text(size = 8),
+    axis.title = element_text(size = 10),
+    legend.text = element_text(size = 8),
+    legend.title = element_text(size = 8)
+  ))
