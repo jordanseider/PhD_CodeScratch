@@ -90,12 +90,25 @@ writeRaster(
 fastdem <- fast(
   "./Sync/Data/ArcticDEM/IvvavikNP/ArcticDEM_IvvavikNP_10m.tif"
 )$dem_10m
-fastdem <- fast(dem_10m$dem_10m)
+# fastdem <- fast(dem_10m$dem_10m)
 
-twi_10m <- wetness(fastdem)
+twi_10m <- wetness(fastdem) %>%
+  rast() %>%
+  rename(twi_10m = dem_10m_twi)
 
-morph <- geomorphons(
+
+morph_0_40 <- geomorphons(
   fastdem,
-  inner = 2,
-  outer = 20
+  mode = "2d", # see help infomation - chosen based on regional topography
+  inner = 0, #0m
+  outer = 40 #400m
 )
+
+morph_0_100 <- geomorphons(
+  fastdem,
+  mode = "2d", # see help infomation - chosen based on regional topography
+  inner = 0, #0m
+  outer = 100 #1000m
+)
+
+writeRaster(morph_0_40, "C:/Users/jseider.stu/Desktop/morph_0_40.tif")
