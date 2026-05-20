@@ -87,28 +87,23 @@ writeRaster(
 )
 
 # Calculate Topographic Wetness Index with GRASS
-fastdem <- fast(
+twi_10m <- fast(
   "./Sync/Data/ArcticDEM/IvvavikNP/ArcticDEM_IvvavikNP_10m.tif"
-)$dem_10m
-# fastdem <- fast(dem_10m$dem_10m)
-
-twi_10m <- wetness(fastdem) %>%
+)$dem_10m %>%
+  wetness() %>%
   rast() %>%
   rename(twi_10m = dem_10m_twi)
 
+# Calculate Geomorphons (see: https://doi.org/10.1016/j.geomorph.2012.11.005)
+library(rgeomorphon)
+Sys.setenv(R_RGEOMORPHON_N_WORKERS = 24)
+Sys.setenv(R_RGEOMORPHON_MEM_SCALE_NEED = 5)
 
-morph_0_40 <- geomorphons(
-  fastdem,
-  mode = "2d", # see help infomation - chosen based on regional topography
-  inner = 0, #0m
-  outer = 40 #400m
+rg <- rgeomorphon::geomorphons(
+  elevation = dem_10m,
+  filename = "C:/Users/jseider.stu/Desktop/geomorphons_0_40.tif",
+  forms = "forms10",
+  search = 40, # outer search radius (cells)
+  skip = 0, # inner skip radius (cells)
+  flat_angle_deg = 1 # flat angle threshold (degrees)
 )
-
-morph_0_100 <- geomorphons(
-  fastdem,
-  mode = "2d", # see help infomation - chosen based on regional topography
-  inner = 0, #0m
-  outer = 100 #1000m
-)
-
-writeRaster(morph_0_40, "C:/Users/jseider.stu/Desktop/morph_0_40.tif")
