@@ -8,7 +8,7 @@ faster(grassDir = "C:/Program Files/GRASS GIS 8.4")
 
 setwd("C:/Users/jseider.stu")
 
-dem <- rast("./Sync/Data/ArcticDEM/202505_ArcticDEM_mosiac_2m.tif")
+#dem <- rast("./Sync/Data/ArcticDEM/202505_ArcticDEM_mosiac_2m.tif")
 
 ivvavik_demproj <- vect(
   "./Sync/Data/ParksCanada/IvvavikNationalPark/IvvavikNationalPark.shp"
@@ -107,3 +107,11 @@ rg <- rgeomorphon::geomorphons(
   skip = 0, # inner skip radius (cells)
   flat_angle_deg = 1 # flat angle threshold (degrees)
 )
+
+# MS-LSP (Phenology)
+# EVI Area (proxy for growing season length and magnitude)
+eviarea <- rast("./Sync/Data/Phenology/MS-LSP/phenology_EVIarea.tif") %>%
+  project(ivvavik, method = "bilinear") %>% # note that bilinear interpolation will modify the raw values
+  crop(ivvavik, mask = TRUE) %>%
+  resample(dem_10m)
+writeRaster(eviarea, "./Sync/Data/Phenology/MS-LSP/eviarea_ivvavik.tif")
