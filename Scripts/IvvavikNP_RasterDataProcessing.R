@@ -3,12 +3,13 @@ terraOptions(memfrac = 0.8)
 library(tidyverse)
 library(tidyterra)
 # BELOW: For calculating TWI with GRASS - also good for large raster processing
-library(fasterRaster)
-faster(grassDir = "C:/Program Files/GRASS GIS 8.4")
+# library(fasterRaster)
+# faster(grassDir = "C:/Program Files/GRASS GIS 8.4")
 
 setwd("C:/Users/jseider.stu")
 
 #dem <- rast("./Sync/Data/ArcticDEM/202505_ArcticDEM_mosiac_2m.tif")
+dem_10m <- rast("./Sync/Data/ArcticDEM/IvvavikNP/ArcticDEM_IvvavikNP_10m.tif")
 
 ivvavik_demproj <- vect(
   "./Sync/Data/ParksCanada/IvvavikNationalPark/IvvavikNationalPark.shp"
@@ -115,3 +116,33 @@ eviarea <- rast("./Sync/Data/Phenology/MS-LSP/phenology_EVIarea.tif") %>%
   crop(ivvavik, mask = TRUE) %>%
   resample(dem_10m)
 writeRaster(eviarea, "./Sync/Data/Phenology/MS-LSP/eviarea_ivvavik.tif")
+
+
+# Macander PFT Top Cover (2015)
+tc_2015 <- list.files(
+  "./Sync/Data/AnnualPFT_ABoVE_Macander/2015",
+  full.names = TRUE
+) %>%
+  rast()
+
+ivvavik_pftproj <- vect(
+  "./Sync/Data/ParksCanada/IvvavikNationalPark/IvvavikNationalPark.shp"
+) %>%
+  project(tc_2015)
+
+tc_2015 <- tc_2015 %>%
+  crop(ivvavik_pftproj, mask = TRUE) %>%
+  project(dem_10m)
+names(tc_2015) <- c(
+  "broadleaf_tree_2015",
+  "conifer_tree_2015",
+  "deciduous_shrub_2015",
+  "evergreen_shrub_2015",
+  "forb_2015",
+  "graminoid_2015",
+  "lichen_2015"
+)
+writeRaster(
+  tc_2015,
+  "./Sync/Data/AnnualPFT_ABoVE_Macander/IvvavikNP_2015_TopCover.tif"
+)
