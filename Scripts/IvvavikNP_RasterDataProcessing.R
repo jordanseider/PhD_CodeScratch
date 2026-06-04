@@ -115,6 +115,16 @@ eviarea <- rast("./Sync/Data/Phenology/MS-LSP/phenology_EVIarea.tif") %>%
   project(ivvavik, method = "bilinear") %>% # note that bilinear interpolation will modify the raw values
   crop(ivvavik, mask = TRUE) %>%
   resample(dem_10m)
+names(eviarea) <- c(
+  "eviarea_2016",
+  "eviarea_2017",
+  "eviarea_2018",
+  "eviarea_2019",
+  "eviarea_2020",
+  "eviarea_2021",
+  "eviarea_2022",
+  "eviarea_2023"
+)
 writeRaster(eviarea, "./Sync/Data/Phenology/MS-LSP/eviarea_ivvavik.tif")
 
 
@@ -146,3 +156,57 @@ writeRaster(
   tc_2015,
   "./Sync/Data/AnnualPFT_ABoVE_Macander/IvvavikNP_2015_TopCover.tif"
 )
+
+
+## DayMet
+# Daylength
+dayl <- rast("E:/DayMet/Ivvavik/Ivvavik_daymet_v4_daily_na_dayl_2016.tif") %>%
+  project(dem_10m) %>%
+  crop(ivvavik_demproj, mask = TRUE)
+
+# Max temperature
+max_temp <- list.files(
+  "E:/DayMet/Ivvavik/",
+  pattern = "*tmax_*",
+  full.names = TRUE
+) %>%
+  rast()
+names(max_temp) <- paste0(rep(2016:2023, each = 365), "_", names(max_temp))
+
+mean_tmax <- tapp(
+  max_temp,
+  index = rep(1:365, times = 8),
+  fun = mean,
+  na.rm = TRUE
+)
+names(mean_tmax) <- paste0("avg_tmax_doy_", sprintf("%03d", 1:365))
+
+mean_tmax <- mean_tmax %>%
+  project(dem_10m) %>%
+  crop(ivvavik_demproj, mask = TRUE)
+
+## Calculate GDD up to day 150 (rough average greenup date)
+gdd_doy150 <- mean_tmax[[1:150]]
+
+basetemp <- 0
+
+gdd_doy150[gdd_doy150 < basetemp] <- basetemp
+gdd_doy150 <- sum(gdd_doy150 - basetemp, na.rm = TRUE)
+names(gdd_doy150) <- "GDD_0C_DOY150"
+
+## Monthly means
+# March is approximately DOY 60 to 90 (31 days)
+march_tmax <- mean(mean_tmax[[60:90]], na.rm = TRUE)
+names(march_tmax) <- "March_Mean_Tmax"
+
+# April is approximately DOY 91 to 120 (30 days)
+april_tmax <- mean(mean_tmax[[91:120]], na.rm = TRUE)
+names(april_tmax) <- "April_Mean_Tmax"
+
+# May is approximately DOY 121 to 151 (31 days)
+may_tmax <- mean(mean_tmax[[121:151]], na.rm = TRUE)
+names(may_tmax) <- "May_Mean_Tmax"
+
+# June is approximately DOY 152 to 181 (30 days)
+june_tmax <- mean(mean_tmax[[152:181]], na.rm = TRUE)
+names(june_tmax) <- "June_Mean_Tmax"
