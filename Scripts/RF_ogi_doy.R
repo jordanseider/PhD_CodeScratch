@@ -39,28 +39,37 @@ topo$geomorph <- rast(
 
 veg <- rast("./Sync/Data/AnnualPFT_ABoVE_Macander/IvvavikNP_2015_TopCover.tif")
 
+clim <- c(
+  rast("./Sync/Data/Climate/Ivvavik_monthly_mean_tmax.tif"),
+  #rast("./Sync/Data/Climate/Ivvavik_gdd_doy150.tif"),
+  rast("./Sync/Data/Climate/meanSWE_doy100_120.tif"),
+  rast("./Sync/Data/Climate/meanSWE_doy121_150.tif")
+) %>%
+  project(ogi_doy, method = "bilinear")
+
 set.seed(123)
 sample <- spatSample(
   ivvavik,
-  size = 10000
+  size = 25000
 )
 
 df <- data.frame(
   #  eviarea = terra::extract(mean_eviarea_norm, sample)[, -1],
   ogi_doy = terra::extract(mean_ogidoy, sample)[, -1],
   terra::extract(topo, sample)[, -1],
-  terra::extract(veg, sample)[, -1]
+  terra::extract(veg, sample)[, -1],
+  terra::extract(clim, sample)[, -1]
 ) %>%
   na.omit()
 
-set.seed(123)
+set.seed(1)
 train_idx <- sample(nrow(df), round(nrow(df) * 0.7))
 
 df.train <- df[train_idx, ] %>%
   select(-geomorph) # %>%
 #mutate(geomorph = as.factor(geomorph))
 
-set.seed(123)
+set.seed(2)
 model.rf <- randomForest(
   ogi_doy ~ .,
   data = df.train,
@@ -110,10 +119,10 @@ ggplot(results_df, aes(x = Actual, y = Predicted)) +
 partialPlot(
   x = model.rf,
   pred.data = df.train,
-  x.var = "evergreen_shrub_2015",
+  x.var = "GDD_0C_DOY150",
   plot = TRUE,
   rug = TRUE,
   main = "Partial Dependence",
-  xlab = "Percent Cover of Evergreen Shrub (2015)",
-  ylab = "Predicted Proportion of Max EVI Area"
+  xlab = "Growing Degree Days (0C) to DOY 150",
+  ylab = "Predicted Onset of Green up (15%) DOY"
 )
