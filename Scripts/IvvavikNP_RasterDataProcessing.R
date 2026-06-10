@@ -8,7 +8,6 @@
 # -----------------------------------------------------------------------------
 
 library(terra)
-library(tidyverse)
 library(tidyterra)
 library(rgeomorphon)
 library(fasterRaster)
@@ -99,7 +98,8 @@ process_daymet <- function(
     crop(bnd_raw, mask = TRUE) |>
     tapp(index = rep(1:365, times = length(years)), fun = mean, na.rm = TRUE) |>
     setNames(paste0(var_prefix, sprintf("%03d", 1:365))) |>
-    project(target, method = "bilinear")
+    project(target, method = "bilinear") |>
+    mask(boundary)
 }
 
 # -----------------------------------------------------------------------------
@@ -169,6 +169,13 @@ geomorphons_10m <- rgeomorphon::geomorphons(
 
 write_tif(geomorphons_10m, path_geomorphons, predictor = 2, datatype = "INT1U")
 
+
+# --- CLEANUP BLOCK ---
+rm(dem_10m, twi_10m, geomorphons_10m)
+gc()
+tmpFiles(remove = TRUE)
+
+
 # -----------------------------------------------------------------------------
 # Phenology - MS-LSP EVI Area & Onset of Greenness (2016-2023)
 # -----------------------------------------------------------------------------
@@ -179,7 +186,7 @@ eviarea <- rast(
 ) |>
   (\(r) crop(r, project(ivvavik, crs(r)), mask = TRUE))()
 eviarea <- project(eviarea, template_10m, method = "bilinear")
-eviarea <- crop(eviarea, ivvavik, mask = TRUE)
+eviarea <- mask(eviarea, ivvavik)
 eviarea <- setNames(eviarea, paste0("eviarea_", 2016:2023))
 
 write_tif(eviarea, "./Sync/Data/Phenology/MS-LSP/eviarea_ivvavik.tif")
@@ -188,7 +195,7 @@ write_tif(eviarea, "./Sync/Data/Phenology/MS-LSP/eviarea_ivvavik.tif")
 ogi <- rast("E:/PhenologyDataFromSeamore/Processed/phenology_OGI.tif")
 ogi <- crop(ogi, project(ivvavik, crs(ogi)), mask = TRUE)
 ogi <- project(ogi, template_10m, method = "bilinear")
-ogi <- crop(ogi, ivvavik, mask = TRUE)
+ogi <- mask(ogi, ivvavik)
 ogi <- setNames(ogi, paste0("ogi_", 2016:2023))
 
 # Check if all values are whole numbers
@@ -209,7 +216,7 @@ tc_2015 <- rast(list.files(
 ))
 tc_2015 <- crop(tc_2015, project(ivvavik, crs(tc_2015)), mask = TRUE)
 tc_2015 <- project(tc_2015, template_10m, method = "bilinear")
-tc_2015 <- crop(tc_2015, ivvavik, mask = TRUE)
+tc_2015 <- mask(tc_2015, ivvavik)
 tc_2015 <- setNames(
   tc_2015,
   c(
@@ -225,6 +232,13 @@ tc_2015 <- setNames(
 
 write_tif(tc_2015, path_pft)
 
+
+# --- CLEANUP BLOCK ---
+rm(eviarea, ogi, tc_2015)
+gc()
+tmpFiles(remove = TRUE)
+
+
 # -----------------------------------------------------------------------------
 # Climate - DayMet Daily Data (2016-2023)
 # -----------------------------------------------------------------------------
@@ -237,7 +251,7 @@ years <- 2016:2023
 dayl <- file.path(daymet_dir, "Ivvavik_daymet_v4_daily_na_dayl_2016.tif") |>
   rast()
 dayl <- project(dayl, template_10m, method = "bilinear")
-dayl <- crop(dayl, ivvavik, mask = TRUE)
+dayl <- mask(dayl, ivvavik)
 
 write_tif(dayl, "./Sync/Data/Climate/Ivvavik_dayl_2016.tif")
 
@@ -254,10 +268,19 @@ mean_swe <- process_daymet(
 
 mean_swe[[100:120]] |>
   mean(na.rm = TRUE) |>
+  setNames("mean_swe_100_120") |>
   write_tif("./Sync/Data/Climate/meanSWE_doy100_120.tif")
 mean_swe[[121:150]] |>
   mean(na.rm = TRUE) |>
+  setNames("mean_swe_121_150") |>
   write_tif("./Sync/Data/Climate/meanSWE_doy121_150.tif")
+
+
+# --- CLEANUP BLOCK ---
+rm(dayl, mean_swe)
+gc()
+tmpFiles(remove = TRUE)
+
 
 # --- Temperature and Derived Metrics ---
 
@@ -295,6 +318,15 @@ monthly_tmax <- tapp(
 )
 
 write_tif(monthly_tmax, "./Sync/Data/Climate/Ivvavik_monthly_mean_tmax.tif")
+
+
+# --- CLEANUP BLOCK ---
+# We keep mean_tmax and mean_tmin for the GDD calculation, but
+# we can destroy the day length, SWE, and subsets.
+rm(tmax_subset, monthly_tmax)
+gc()
+tmpFiles(remove = TRUE)
+
 
 # Growing Degree Days (GDD) up to DOY 150 (approx. start of green up)
 
