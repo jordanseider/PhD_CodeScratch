@@ -9,12 +9,12 @@ ivvavik <- vect(
 ) %>%
   project("EPSG:32607")
 
-ogi_doy <- rast("E:/PhenologyDataFromSeamore/Processed/phenology_OGI.tif")
+ogi_doy <- rast("./Sync/Data/Phenology/MS-LSP/ogi_ivvavik.tif")
 crs(ogi_doy) <- crs(ivvavik)
 ogi_doy <- crop(ogi_doy, ivvavik, mask = TRUE)
 names(ogi_doy) <- paste0("ogi_doy_", names(ogi_doy))
 
-evi_area <- rast("E:/PhenologyDataFromSeamore/Processed/phenology_EVIarea.tif")
+evi_area <- rast("./Sync/Data/Phenology/MS-LSP/eviarea_ivvavik.tif")
 crs(evi_area) <- crs(ivvavik)
 evi_area <- crop(evi_area, ivvavik, mask = TRUE)
 names(evi_area) <- paste0("evi_area_", names(evi_area))
@@ -27,7 +27,7 @@ mean_eviarea_norm <- (mean_eviarea - minmax(mean_eviarea)[1]) /
 
 topo <- c(
   rast("./Sync/Data/ArcticDEM/IvvavikNP/ArcticDEM_IvvavikNP_10m.tif"),
-  rast("./Sync/Data/ArcticDEM/IvvavikNP/TopoWetness_IvvavikNP_10m.tif")
+  rast("./Sync/Data/ArcticDEM/IvvavikNP/ArcticDEM_IvvavikNP_twi_10m.tif")
 )
 topo$aspect_10m <- NULL
 topo <- resample(topo, mean_ogidoy, method = "bilinear")
@@ -41,7 +41,7 @@ veg <- rast("./Sync/Data/AnnualPFT_ABoVE_Macander/IvvavikNP_2015_TopCover.tif")
 
 clim <- c(
   rast("./Sync/Data/Climate/Ivvavik_monthly_mean_tmax.tif"),
-  #rast("./Sync/Data/Climate/Ivvavik_gdd_doy150.tif"),
+  rast("./Sync/Data/Climate/Ivvavik_gdd_doy150.tif"),
   rast("./Sync/Data/Climate/meanSWE_doy100_120.tif"),
   rast("./Sync/Data/Climate/meanSWE_doy121_150.tif")
 ) %>%

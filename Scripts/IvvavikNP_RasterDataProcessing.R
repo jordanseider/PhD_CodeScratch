@@ -9,11 +9,9 @@
 
 library(terra)
 library(tidyterra)
+library(lubridate)
 library(rgeomorphon)
 library(fasterRaster)
-
-# Initialize GRASS GIS for fasterRaster
-faster(grassDir = "C:/Program Files/GRASS GIS 8.4")
 
 # Global Terra Options
 terraOptions(
@@ -22,6 +20,9 @@ terraOptions(
   threads = 26, # i9-13950HX has 32 threads; leave a few free for the OS
   tempdir = "C:/Users/jseider.stu/AppData/Local/Temp"
 )
+
+# Initialize GRASS GIS for fasterRaster
+faster(grassDir = "C:/Program Files/GRASS GIS 8.4")
 
 # Global rgeomorphon Options
 Sys.setenv(R_RGEOMORPHON_N_WORKERS = 26, R_RGEOMORPHON_MEM_SCALE_NEED = 5)
@@ -67,37 +68,46 @@ write_tif <- function(r, path, predictor = 3, overwrite = TRUE, ...) {
   )
 }
 
-# Average DayMet daily layers across years by DOY
+# Average DayMet daily layers across years by DOY.
+# Daymet data does not include Dec 31 on leap years
+# Cell values equal the average pixel value across all available years of data.
 process_daymet <- function(
   pattern,
   daymet_dir,
-  years,
   target,
   boundary,
-  var_prefix
+  var_prefix,
+  max_doy = 365
 ) {
   message(paste0("Processing DayMet: ", pattern, "..."))
 
   # Locate all target files across all years using a single regex pattern
   files <- list.files(
     daymet_dir,
-    pattern = paste0(
-      pattern,
-      ".*(",
-      paste(years, collapse = "|"),
-      ").*\\.tif$"
-    ),
+    pattern = paste0(pattern, ".*\\.tif$"),
     full.names = TRUE
-  )
+  ) |>
+    sort()
+
+  if (length(files) == 0) {
+    stop("No files matched pattern: ", pattern, " in ", daymet_dir)
+  }
 
   # Align the park boundary to the raw DayMet CRS
   bnd_raw <- project(boundary, crs(rast(files[1])))
 
+  # Create a repeating 1:365 index representing the entire loaded stack
+  num_years <- length(files)
+  doy_index <- rep(1:365, times = num_years)
+
+  # Find the exact layer positions across ALL years that fall within max_doy
+  keep_layers <- which(doy_index <= max_doy)
+
   # Load the pointers, crop immediately, compute DOY means, rename, and project to 10m
-  rast(files) |>
-    crop(bnd_raw, mask = TRUE) |>
-    tapp(index = rep(1:365, times = length(years)), fun = mean, na.rm = TRUE) |>
-    setNames(paste0(var_prefix, sprintf("%03d", 1:365))) |>
+  rast(files)[[keep_layers]] |>
+    crop(bnd_raw) |>
+    tapp(index = doy_index[keep_layers], fun = mean, na.rm = TRUE) |>
+    setNames(paste0(var_prefix, sprintf("%03d", seq_len(max_doy)))) |>
     project(target, method = "bilinear") |>
     mask(boundary)
 }
@@ -144,7 +154,7 @@ template_10m <- dem_10m[[1]]
 
 path_twi <- "./Sync/Data/ArcticDEM/IvvavikNP/ArcticDEM_IvvavikNP_twi_10m.tif"
 
-twi_10m <- fast(path_10m)$dem_10m |>
+twi_10m <- fast(path_10m)[["dem_10m"]] |>
   wetness() |>
   rast() |>
   project(template_10m, method = "bilinear") |>
@@ -173,7 +183,7 @@ write_tif(geomorphons_10m, path_geomorphons, predictor = 2, datatype = "INT1U")
 # --- CLEANUP BLOCK ---
 rm(dem_10m, twi_10m, geomorphons_10m)
 gc()
-tmpFiles(remove = TRUE)
+tmpFiles(current = FALSE, orphan = TRUE, remove = TRUE)
 
 
 # -----------------------------------------------------------------------------
@@ -196,13 +206,10 @@ ogi <- rast("E:/PhenologyDataFromSeamore/Processed/phenology_OGI.tif")
 ogi <- crop(ogi, project(ivvavik, crs(ogi)), mask = TRUE)
 ogi <- project(ogi, template_10m, method = "bilinear")
 ogi <- mask(ogi, ivvavik)
+ogi <- as.integer(round(ogi))
 ogi <- setNames(ogi, paste0("ogi_", 2016:2023))
 
-# Check if all values are whole numbers
-all(values(eviarea) == floor(values(eviarea)), na.rm = TRUE)
-# If TRUE, use 'predictor = 2' for float values
-
-write_tif(ogi, "./Sync/Data/Phenology/MS-LSP/ogi_ivvavik.tif")
+write_tif(ogi, "./Sync/Data/Phenology/MS-LSP/ogi_ivvavik.tif", predictor = 2)
 
 # -----------------------------------------------------------------------------
 # Plant Functional Types - Macander Top Cover (2015)
@@ -236,7 +243,7 @@ write_tif(tc_2015, path_pft)
 # --- CLEANUP BLOCK ---
 rm(eviarea, ogi, tc_2015)
 gc()
-tmpFiles(remove = TRUE)
+tmpFiles(current = FALSE, orphan = TRUE, remove = TRUE)
 
 
 # -----------------------------------------------------------------------------
@@ -244,26 +251,32 @@ tmpFiles(remove = TRUE)
 # -----------------------------------------------------------------------------
 
 daymet_dir <- "E:/DayMet/Ivvavik/"
-years <- 2016:2023
 
 # --- Day Length (sec/day) ---
 
-dayl <- file.path(daymet_dir, "Ivvavik_daymet_v4_daily_na_dayl_2016.tif") |>
+dayl <- file.path(daymet_dir, "Ivvavik_daymet_v4_daily_na_dayl_2016.tif") %>%
   rast()
+dayl <- dayl[[1:150]]
+
 dayl <- project(dayl, template_10m, method = "bilinear")
 dayl <- mask(dayl, ivvavik)
 
-write_tif(dayl, "./Sync/Data/Climate/Ivvavik_dayl_2016.tif")
+# Cumulative day length (seconds) from Jan 1 to DOY 150
+# Captures total photoperiod exposure prior to typical green-up window
+dayl <- sum(dayl) / 3600 # convert to hours for interpretability
+names(dayl) <- "cumulative_dayl_to_doy150"
+
+write_tif(dayl, "./Sync/Data/Climate/Ivvavik_dayl_hrs_150.tif")
 
 # --- Snow Water Equivalent (SWE) in kg/m2 ---
 
 mean_swe <- process_daymet(
   "swe",
   daymet_dir,
-  years,
   template_10m,
   ivvavik,
-  "avg_swe_doy_"
+  "avg_swe_doy_",
+  max_doy = 150
 )
 
 mean_swe[[100:120]] |>
@@ -279,7 +292,7 @@ mean_swe[[121:150]] |>
 # --- CLEANUP BLOCK ---
 rm(dayl, mean_swe)
 gc()
-tmpFiles(remove = TRUE)
+tmpFiles(current = FALSE, orphan = TRUE, remove = TRUE)
 
 
 # --- Temperature and Derived Metrics ---
@@ -287,18 +300,18 @@ tmpFiles(remove = TRUE)
 mean_tmax <- process_daymet(
   "tmax",
   daymet_dir,
-  years,
   template_10m,
   ivvavik,
-  "avg_tmax_doy_"
+  "avg_tmax_doy_",
+  max_doy = 181
 )
 mean_tmin <- process_daymet(
   "tmin",
   daymet_dir,
-  years,
   template_10m,
   ivvavik,
-  "avg_tmin_doy_"
+  "avg_tmin_doy_",
+  max_doy = 181
 )
 
 # Monthly Mean Maximum Temperature (March-June)
@@ -321,11 +334,10 @@ write_tif(monthly_tmax, "./Sync/Data/Climate/Ivvavik_monthly_mean_tmax.tif")
 
 
 # --- CLEANUP BLOCK ---
-# We keep mean_tmax and mean_tmin for the GDD calculation, but
-# we can destroy the day length, SWE, and subsets.
+# We keep mean_tmax and mean_tmin for the GDD calculation
 rm(tmax_subset, monthly_tmax)
 gc()
-tmpFiles(remove = TRUE)
+tmpFiles(current = FALSE, orphan = TRUE, remove = TRUE)
 
 
 # Growing Degree Days (GDD) up to DOY 150 (approx. start of green up)
@@ -361,3 +373,7 @@ gdd_matrix_calc <- function(m, base_temp = 0) {
 gdd_doy150 <- app(climate_stack, fun = gdd_matrix_calc, base_temp = 0)
 
 write_tif(gdd_doy150, "./Sync/Data/Climate/Ivvavik_gdd_doy150.tif")
+
+# --- CLEANUP BLOCK ---
+gc()
+tmpFiles(current = FALSE, orphan = TRUE, remove = TRUE)
