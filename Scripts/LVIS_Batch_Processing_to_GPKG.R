@@ -1,5 +1,6 @@
 library(readr)
 library(sf)
+library(dplyr)
 library(furrr)
 
 setwd("C:/Users/jseider.stu/Downloads")
@@ -23,7 +24,8 @@ read_lvis_safe <- function(path) {
   lvis_data <- read_table(path, 
                           skip = 20, 
                           col_names = lvis_colnames,
-                          show_col_types = FALSE)
+                          show_col_types = FALSE) |>
+    mutate(GLON = GLON - 360)
   return(lvis_data)
 }
 
