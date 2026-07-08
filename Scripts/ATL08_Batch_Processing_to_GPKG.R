@@ -35,14 +35,23 @@ process_atl08_file <- function(file_path) {
   beam_data_list <- lapply(beams, function(beam) {
     
     tryCatch({
+
       # 1. Coordinates
       lon <- h5_file[[paste0(beam, "/land_segments/longitude")]][]
       lat <- h5_file[[paste0(beam, "/land_segments/latitude")]][]
       
-      # 2. Canopy Variables
+      # 2. Time Variable
+      delta_time <- h5_file[[paste0(beam, "/land_segments/delta_time")]][]
+      
+      # Convert ICESat-2 time to a standard POSIXct datetime object
+      # The ATLAS epoch is exactly Midnight on Jan 1, 2018 in UTC
+      atlas_epoch <- as.POSIXct("2018-01-01 00:00:00", tz = "UTC")
+      segment_datetime <- atlas_epoch + delta_time
+      
+      # 3. Canopy Variables
       canopy_h <- h5_file[[paste0(beam, "/land_segments/canopy/h_canopy")]][]
       
-      # 3. Terrain Variables
+      # 4. Terrain Variables
       terrain_h <- h5_file[[paste0(beam, "/land_segments/terrain/h_te_best_fit")]][]
       
       # Compile into a dataframe
@@ -51,6 +60,7 @@ process_atl08_file <- function(file_path) {
         beam = beam,
         lon = as.numeric(lon),
         lat = as.numeric(lat),
+        datetime = segment_datetime,
         canopy_height_m = as.numeric(canopy_h),
         terrain_height_m = as.numeric(terrain_h)
       )
