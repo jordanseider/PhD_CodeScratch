@@ -85,12 +85,12 @@ combined_simple <- classify(
       44, 5
     ),
     ncol = 2,
-    byrow = T
+    byrow = TRUE
   )
 ) %>%
   as.factor()
 
-levels(combined_simple) <- list(
+levels(combined_simple) <- 
   data.frame(
   ID = 0:5,
   cover = c(
@@ -101,7 +101,7 @@ levels(combined_simple) <- list(
     "high cover - high biomass",
     "highest cover - highest biomass"
   )
-))
+)
 
 # Calculate the combined area of each rank (only run with equal area projections, otherwise must use 'expanse' function)
 area_totals <- freq(combined_simple) %>%
@@ -146,7 +146,7 @@ custom_labels <- setNames(
 ggsave(
   "C:/Users/jseider.stu/Sync/Figures/shrub_plot2.png",
   shrub_plot,
-  width = 8,
-  height = 6.5,
+  width = 6.5,
+  height = 8,
   units = "in"
 )
