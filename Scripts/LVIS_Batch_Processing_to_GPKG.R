@@ -1,9 +1,9 @@
 library(readr)
-library(sf)
+library(terra)
 library(dplyr)
 library(furrr)
 
-setwd("C:/Users/jseider.stu/Downloads")
+setwd("E:/NASA_LVIS")
 
 # 1. Set up parallel processing
 # Reserving a few threads so your OS remains fully responsive
@@ -31,14 +31,22 @@ read_lvis_safe <- function(path) {
 
 # 3. Execute in parallel
 # future_map_dfr acts exactly like map_dfr, but infinitely faster here
-combined_lvis_data <- future_map_dfr(file_paths, read_lvis_safe)
+combined_lvis_data <- future_map_dfr(file_paths, read_lvis_safe) |>
+  vect(
+    geom = c("GLON", "GLAT"), 
+    keepgeom = TRUE,
+    crs = "EPSG:4326"                  
+  ) |>
+  project("EPSG:3579")
 
-# 4. Convert to a spatial object
-# Note: st_as_sf is single-threaded, so this step will still take a moment
-combined_lvis_sf <- st_as_sf(
-  combined_lvis_data,
-  coords = c("GLON", "GLAT"), 
-  crs = 4326                  
-)
+rast_template_10m <- rast(combined_lvis_data, resolution = 30)
 
-st_write(combined_lvis_sf, "./LVISF2_1-20260708_181445/combined_LVIS_F2.gpkg")
+lvis_raster <- rasterize(
+  x = combined_lvis_data,
+  y = rast_template_10m,
+  field = "RH100", 
+  fun = "max", 
+  background = NA, 
+  filename = "./LVISF2_1-20260708_181445/LVIS_F2_RH100.tif", 
+  overwrite = TRUE
+  )
