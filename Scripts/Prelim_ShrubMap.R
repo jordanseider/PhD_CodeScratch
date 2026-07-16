@@ -90,7 +90,8 @@ combined_simple <- classify(
 ) %>%
   as.factor()
 
-levels(combined_simple) <- data.frame(
+levels(combined_simple) <- list(
+  data.frame(
   ID = 0:5,
   cover = c(
     "no cover - no biomass",
@@ -100,7 +101,7 @@ levels(combined_simple) <- data.frame(
     "high cover - high biomass",
     "highest cover - highest biomass"
   )
-)
+))
 
 # Calculate the combined area of each rank (only run with equal area projections, otherwise must use 'expanse' function)
 area_totals <- freq(combined_simple) %>%
