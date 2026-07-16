@@ -5,21 +5,22 @@ library(tidyterra)
 setwd("E:/Orndahl_PFT_Biomass/resource_map_doi_10_18739_A2Q52FF2B/data")
 
 # Load raw data
-ivvavik_raw <- vect("C:/Users/jseider.stu/Sync/Data/ParksCanada/IvvavikNationalPark/IvvavikNationalPark.shp")
+#border_raw <- vect("C:/Users/jseider.stu/Sync/Data/ParksCanada/borderNationalPark/borderNationalPark.shp")
+border_raw <- vect("C:/Users/jseider.stu/Sync/Data/Porcupine/PCH_CanadaOnly.shp")
 cover_raw   <- rast("C:/Users/jseider.stu/Sync/Data/AnnualPFT_ABoVE_Macander/2010/ABoVE_PFT_Top_Cover_DeciduousShrub_2010.tif") 
 biomass_raw <- rast("./pft_agb_deciduousshrub_p50_2010.tif")
 
 # Convert data into Yukon Albers (EPSG 3579)
-ivvavik_data <- project(ivvavik_raw, crs(cover_raw))
-ivvavik_3579 <- project(ivvavik_raw, "EPSG:3579")
+border_data <- project(border_raw, crs(cover_raw))
+border_3579 <- project(border_raw, "EPSG:3579")
 
-cover   <- crop(cover_raw, ivvavik_data) %>%
+cover   <- crop(cover_raw, border_data) %>%
   project("EPSG:3579", method = "bilinear") %>%
-  mask(ivvavik_3579)
+  mask(border_3579)
 
-biomass <- crop(biomass_raw, ivvavik_data) %>%
+biomass <- crop(biomass_raw, border_data) %>%
   project(cover, method = "bilinear") %>%
-  mask(ivvavik_3579)
+  mask(border_3579)
 
 # Reclassify continuous percent values to rank groups 
 cover_cat <- classify(
@@ -99,16 +100,18 @@ levels(combined_simple) <- data.frame(
   )
 )
 
-# Calculate the combined area of each rank
-area_totals <- expanse(combined_simple, unit = "km", byValue = TRUE) %>%
-  rename(area_km2 = area) %>%
+# Calculate the combined area of each rank (only run with equal area projections, otherwise must use 'expanse' function)
+area_totals <- freq(combined_simple) %>%
   mutate(
-    perc = (area_km2 / sum(area_km2)) * 100,
-    perc = format(round(perc, 1), scientific = FALSE)
-  )
+    area_km2 = (count * 900) / 1000000,
+    perc_num = (area_km2 / sum(area_km2)) * 100,
+    perc_lab = case_when(
+      perc_num > 0 & perc_num < 1 ~ "<1",
+      TRUE ~ format(round(perc_num, 1), scientific = FALSE)
+  ))
 
 custom_labels <- setNames(
-  paste0(area_totals$value, " (", area_totals$perc, "%)"),
+  paste0(area_totals$value, " (", area_totals$perc_lab, "%)"),
   area_totals$value
 )
 
@@ -129,8 +132,10 @@ custom_labels <- setNames(
     labels = custom_labels,
     na.translate = FALSE
   ) +
-    xlim(c(148977, 275000)) +
-    ylim(c(1583114, 1713271)) +
+    # xlim(c(148977, 275000)) +
+    # ylim(c(1583114, 1713271)) +
+    xlim(c(90000, 420000)) +
+    ylim(c(1100000, 1730000)) +
   theme_bw() +
   theme(legend.text = element_text(size = 10)))
 
