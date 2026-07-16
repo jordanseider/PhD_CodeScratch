@@ -114,7 +114,8 @@ custom_labels <- setNames(
 
 # Plot data
 (shrub_plot <- ggplot() +
-  geom_spatraster(data = combined_3579, interpolate = TRUE) +
+  geom_spatraster(data = combined_simple,
+                  maxcell = 2e6) +
   scale_fill_manual(
     name = "Deciduous Shrubs - 2010",
     values = c(
@@ -128,12 +129,14 @@ custom_labels <- setNames(
     labels = custom_labels,
     na.translate = FALSE
   ) +
+    xlim(c(148977, 275000)) +
+    ylim(c(1583114, 1713271)) +
   theme_bw() +
   theme(legend.text = element_text(size = 10)))
 
 # Save plot
 ggsave(
-  "C:/Users/jseider.stu/Sync/Figures/shrub_plot.png",
+  "C:/Users/jseider.stu/Sync/Figures/shrub_plot2.png",
   shrub_plot,
   width = 8,
   height = 6.5,
