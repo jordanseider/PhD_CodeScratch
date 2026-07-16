@@ -9,15 +9,19 @@ ivvavik_raw <- vect("C:/Users/jseider.stu/Sync/Data/ParksCanada/IvvavikNationalP
 cover_raw   <- rast("C:/Users/jseider.stu/Sync/Data/AnnualPFT_ABoVE_Macander/2010/ABoVE_PFT_Top_Cover_DeciduousShrub_2010.tif") 
 biomass_raw <- rast("./pft_agb_deciduousshrub_p50_2010.tif")
 
-# 
-ivvavik <- project(ivvavik_raw, crs(cover_raw))
+# Convert data into Yukon Albers (EPSG 3579)
+ivvavik_data <- project(ivvavik_raw, crs(cover_raw))
+ivvavik_3579 <- project(ivvavik_raw, "EPSG:3579")
 
-cover   <- crop(cover_raw, ivvavik) %>%
-  mask(ivvavik)
+cover   <- crop(cover_raw, ivvavik_data) %>%
+  project("EPSG:3579", method = "bilinear") %>%
+  mask(ivvavik_3579)
 
-biomass <- crop(biomass_raw, ivvavik) %>%
-  mask(ivvavik)
+biomass <- crop(biomass_raw, ivvavik_data) %>%
+  project(cover, method = "bilinear") %>%
+  mask(ivvavik_3579)
 
+# Reclassify continuous percent values to rank groups 
 cover_cat <- classify(
   cover,
   rcl = matrix(
@@ -48,6 +52,7 @@ biomass_cat <- classify(
   include.lowest = TRUE
 )
 
+# Combine rank values for each dataset 
 combined <- ifel(
   cover_cat == 0,
   0, # If TRUE: force value to 0
@@ -55,6 +60,7 @@ combined <- ifel(
 ) %>% # If FALSE: calculate the combined ID (first digit is cover, second is biomass)
   as.factor()
 
+# Reclassify the combined rank values into single ranks
 combined_simple <- classify(
   combined,
   rcl = matrix(
@@ -93,9 +99,8 @@ levels(combined_simple) <- data.frame(
   )
 )
 
-combined_3579 <- project(combined_simple, "EPSG:3579", method = "near")
-
-area_totals <- expanse(combined_3579, unit = "km", byValue = TRUE) %>%
+# Calculate the combined area of each rank
+area_totals <- expanse(combined_simple, unit = "km", byValue = TRUE) %>%
   rename(area_km2 = area) %>%
   mutate(
     perc = (area_km2 / sum(area_km2)) * 100,
@@ -107,8 +112,9 @@ custom_labels <- setNames(
   area_totals$value
 )
 
+# Plot data
 (shrub_plot <- ggplot() +
-  geom_spatraster(data = combined_3579) +
+  geom_spatraster(data = combined_3579, interpolate = TRUE) +
   scale_fill_manual(
     name = "Deciduous Shrubs - 2010",
     values = c(
@@ -125,6 +131,7 @@ custom_labels <- setNames(
   theme_bw() +
   theme(legend.text = element_text(size = 10)))
 
+# Save plot
 ggsave(
   "C:/Users/jseider.stu/Sync/Figures/shrub_plot.png",
   shrub_plot,
